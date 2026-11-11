@@ -22,12 +22,12 @@ function zodFor(def: FieldDef): z.ZodTypeAny {
 
 const shape: Record<string, z.ZodTypeAny> = Object.fromEntries(FIELDS.map((d) => [d.key, zodFor(d)]));
 
-/** Record schema: field types + the cross-field rules from spec §6. */
-export const RecordSchema = z
+/** Record schema: field types + the cross-field rules from spec §6. `requirePrice: false` is for the sell side, where the price is the output. */
+export const makeRecordSchema = ({ requirePrice = true }: { requirePrice?: boolean } = {}) => z
   .object(shape)
   .superRefine((r, ctx) => {
     const status = r.status as string | undefined;
-    if ((status === 'listed' || status === 'under_offer') && r.asking_price === undefined) {
+    if (requirePrice && (status === 'listed' || status === 'under_offer') && r.asking_price === undefined) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['asking_price'], message: 'Required when status is listed' });
     }
     if (status === 'sold' && r.sale_price === undefined) {
@@ -41,5 +41,7 @@ export const RecordSchema = z
       }
     }
   });
+
+export const RecordSchema = makeRecordSchema();
 
 export const JSON_SCHEMA_VERSION = '1.0';

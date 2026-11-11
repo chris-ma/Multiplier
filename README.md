@@ -1,4 +1,4 @@
-# Multiplier: small business valuation screen (AU)
+# Multiplier: small business valuation (AU), buy side and sell side
 
 Screens Australian small business listings as **normalised SDE × a risk-adjusted multiple**. Each listing is then shown as a **Price-to-Fair-Value ratio (P/FV)** with one of five verdict bands.
 
@@ -15,6 +15,21 @@ FV = SDE_weighted × (M_base + Σ sᵢ·wᵢ) + Inventory + Assets_excess − Ca
 - **Single-record calculator form**: it runs through the same validation pipeline as bulk import.
 - **Settings**: sale-to-asking ratio, market owner wage, loan assumptions, weighting rules and a toggle for sold comparables. When a sector has 10 or more sold records, their median multiple replaces its base multiple.
 - Light and dark themes built from tokens. Colour is used only for verdicts, and every verdict always has a text label.
+
+## Sell side
+
+The header switch opens a separate sell-side section for owners. It has its own navigation, screens and storage, and shares only the valuation engine, Settings and Method with the buy side.
+
+- **Price my business**: plain-language questions, with three years of earnings in one grid. Live results show:
+  - **Recommended list price** = fair value ÷ the sale-to-asking ratio. After a typical negotiation, the sale should land near fair value.
+  - **Three strategies**: Quick sale (list at fair value), Market (recommended), and Stretch (P/FV 1.15, the highest price that still reads "Above" rather than "Well above"). Each shows the expected sale price, the verdict a buyer's screen would show, and whether a bank would fund it.
+  - **Bank-fundable cap**: the highest price at which a buyer's loan still passes DSCR ≥ 1.25. If Market fails that test and the cap is within 10% of fair value, the cap becomes the recommendation. Otherwise the app shows the shortfall that vendor finance would need to cover.
+  - **Test your own price**: the P/FV strip shows how buyers will read any price you type.
+  - **Raise your price**: fair-value uplift per factor, measured one at a time (respecting the clamp), with an action for each. The value of add-backs you can't document is shown as a separate at-risk line.
+  - **Before you list**: a checklist of documents buyers ask for.
+- **Saved valuations**: scenarios you can duplicate and compare. They are stored separately from buy-side records (`multiplier:sell:v1` in IndexedDB).
+
+The pricing logic lives in `src/engine/sell.ts` and is tested in `src/engine/sell.test.ts`.
 
 Data is stored locally in the browser (IndexedDB). There is no server.
 

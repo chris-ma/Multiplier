@@ -244,3 +244,42 @@ details.group[open] summary { margin-bottom: 12px; }
   .nav { order: 3; flex: 1 0 100%; flex-wrap: nowrap; overflow-x: auto; }
   .topbar select { margin-left: auto; }
 }
+
+/* Mode switch: buy side / sell side are separate sections */
+.modeswitch { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--radius); overflow: hidden; }
+.modeswitch button { background: var(--surface); border: 0; padding: 5px 12px; cursor: pointer; color: var(--ink-2); font-size: var(--fs-s); }
+.modeswitch button + button { border-left: 1px solid var(--line-2); }
+.modeswitch button[aria-pressed='true'] { background: var(--ink); color: var(--surface); }
+
+/* Sell side */
+.sell-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.sell-result { position: sticky; top: 68px; }
+@media (max-width: 960px) {
+  .sell-grid { grid-template-columns: minmax(0, 1fr); }
+  .sell-result { position: static; order: -1; }
+}
+.affix { display: flex; align-items: stretch; border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface); }
+.affix input { border: 0 !important; flex: 1; min-width: 0; background: transparent; }
+.affix span { padding: 5px 0 5px 8px; color: var(--ink-3); }
+.affix.post span { padding: 5px 8px 5px 0; }
+.affix:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+table.yeargrid { width: 100%; border-collapse: collapse; font-size: var(--fs-s); }
+table.yeargrid th { text-align: left; font-weight: 400; color: var(--ink-2); padding: 4px 8px 4px 0; white-space: nowrap; }
+table.yeargrid thead th { color: var(--ink-3); }
+table.yeargrid td { padding: 4px 0 4px 6px; min-width: 110px; }
+table.yeargrid input { font-size: var(--fs-m); }
+.driver { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: var(--fs-s); }
+.driver:last-of-type { border-bottom: 0; }
+.driver-amt { font-weight: 600; font-size: var(--fs-m); }
+.check { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; font-size: var(--fs-s); cursor: pointer; }
+.check input { margin-top: 2px; accent-color: var(--ink); }
+@media print {
+  .sell-grid { grid-template-columns: 1fr; }
+  .sell-form { display: none; }
+  .sell-result { position: static; }
+}
+table.yeargrid { table-layout: fixed; }
+table.yeargrid th[scope='row'], table.yeargrid thead th:first-child { width: 30%; white-space: normal; }
+table.yeargrid td { min-width: 0; }
+table.yeargrid .affix input { width: 100%; }
+@media (max-width: 600px) { table.yeargrid { min-width: 520px; } }

@@ -3,16 +3,22 @@ import { DEFAULT_SETTINGS, type Settings } from '../engine/settings';
 import type { BizRecord } from '../engine/types';
 import { buildComps, value } from '../engine/value';
 import { autoMap, parseCsvText, validateRows } from '../import/validate';
-import { loadRecords, loadSettings, lsGet, lsSet, saveRecords, saveSettings, upsert } from '../store';
+import { loadRecords, loadSellDrafts, loadSettings, lsGet, lsSet, saveRecords, saveSellDrafts, saveSettings, upsert, type SellDraft } from '../store';
 import { Detail } from './Detail';
 import { ImportView } from './ImportView';
 import { MethodView } from './MethodView';
 import { EMPTY_FILTERS, Portfolio, type Filters } from './Portfolio';
 import { RecordForm } from './RecordForm';
+import { SellSaved } from './SellSaved';
+import { SellView } from './SellView';
 import { SettingsView } from './SettingsView';
 
-type View = 'portfolio' | 'detail' | 'import' | 'new' | 'edit' | 'settings' | 'method';
-const VIEWS: View[] = ['portfolio', 'detail', 'import', 'new', 'edit', 'settings', 'method'];
+type View = 'portfolio' | 'detail' | 'import' | 'new' | 'edit' | 'settings' | 'method' | 'sell' | 'sell-saved';
+const VIEWS: View[] = ['portfolio', 'detail', 'import', 'new', 'edit', 'settings', 'method', 'sell', 'sell-saved'];
+type Mode = 'buy' | 'sell';
+const BUY_VIEWS: View[] = ['portfolio', 'detail', 'import', 'new', 'edit'];
+const SELL_VIEWS: View[] = ['sell', 'sell-saved'];
+const newSellId = () => `SELL-${Date.now().toString(36).toUpperCase()}`;
 
 interface Route { view: View; id?: string; filters: Filters }
 
@@ -21,7 +27,7 @@ function readRoute(): Route {
   const view = (VIEWS.includes(p.get('v') as View) ? p.get('v') : 'portfolio') as View;
   const filters = { ...EMPTY_FILTERS };
   (Object.keys(EMPTY_FILTERS) as (keyof Filters)[]).forEach((k) => { filters[k] = p.get(k) ?? ''; });
-  return { view, id: p.get('id') ?? undefined, filters };
+  return { view, id: p.get('id') ?? (view === 'sell' ? newSellId() : undefined), filters };
 }
 function writeRoute(r: Route, push: boolean) {
   const p = new URLSearchParams();
@@ -42,8 +48,14 @@ export function App() {
   const [route, setRoute] = useState<Route>(readRoute);
   const [theme, setTheme] = useState<Theme>(() => lsGet<Theme>('multiplier:theme', 'system'));
   const [toastMsg, setToastMsg] = useState('');
+  const [drafts, setDrafts] = useState<SellDraft[]>([]);
+  const [modePref, setModePref] = useState<Mode>(() => lsGet<Mode>('multiplier:mode', 'buy'));
+  const mode: Mode = BUY_VIEWS.includes(route.view) ? 'buy' : SELL_VIEWS.includes(route.view) ? 'sell' : modePref;
+  useEffect(() => { if (mode !== modePref) { setModePref(mode); lsSet('multiplier:mode', mode); } }, [mode, modePref]);
 
-  useEffect(() => { Promise.all([loadRecords(), loadSettings()]).then(([r, s]) => { setRecords(r); setSettingsState(s); setLoaded(true); }); }, []);
+  useEffect(() => {
+    Promise.all([loadRecords(), loadSettings(), loadSellDrafts()]).then(([r, s, d]) => { setRecords(r); setSettingsState(s); setDrafts(d); setLoaded(true); });
+  }, []);
   useEffect(() => {
     const onPop = () => setRoute(readRoute());
     window.addEventListener('popstate', onPop);
@@ -87,18 +99,36 @@ export function App() {
   };
 
   const current = route.id ? records.find((r) => r.record_id === route.id) : undefined;
-  const nav: [View, string][] = [['portfolio', 'Portfolio'], ['import', 'Import'], ['new', 'New record'], ['settings', 'Settings'], ['method', 'Method']];
+  const persistDrafts = (ds: SellDraft[]) => { setDrafts(ds); void saveSellDrafts(ds); };
+  const saveDraft = (d: SellDraft) => { persistDrafts([...drafts.filter((x) => x.id !== d.id), d]); toast('Valuation saved'); };
+  const openSell = (id?: string) => go({ view: 'sell', id: id ?? newSellId() });
+  const sellDraft: SellDraft | undefined = route.view === 'sell'
+    ? drafts.find((d) => d.id === route.id) ?? { id: route.id ?? newSellId(), name: '', updatedAt: new Date().toISOString(), values: {} }
+    : undefined;
+  const switchMode = (m: Mode) => {
+    if (m === 'buy') go({ view: 'portfolio' });
+    else if (drafts.length) go({ view: 'sell-saved' });
+    else openSell();
+  };
+  const nav: [View, string][] = mode === 'buy'
+    ? [['portfolio', 'Portfolio'], ['import', 'Import'], ['new', 'New record'], ['settings', 'Settings'], ['method', 'Method']]
+    : [['sell', 'Price my business'], ['sell-saved', 'Saved valuations'], ['settings', 'Settings'], ['method', 'Method']];
 
   return (
     <>
       <header className="topbar">
         <div className="shell">
           <a className="wordmark" href="/" onClick={(e) => { e.preventDefault(); go({ view: 'portfolio' }); }}>
-            Multiplier <span className="muted small">valuation screen · AU</span>
+            Multiplier <span className="muted small">{mode === 'buy' ? 'buy side' : 'sell side'} · AU</span>
           </a>
-          <nav className="nav" aria-label="Main">
+          <div className="modeswitch" role="group" aria-label="Section">
+            <button aria-pressed={mode === 'buy'} onClick={() => switchMode('buy')}>Buy side</button>
+            <button aria-pressed={mode === 'sell'} onClick={() => switchMode('sell')}>Sell side</button>
+          </div>
+          <nav className="nav" aria-label={mode === 'buy' ? 'Buy side' : 'Sell side'}>
             {nav.map(([v, l]) => (
-              <button key={v} aria-current={route.view === v || (v === 'portfolio' && route.view === 'detail') ? 'page' : undefined} onClick={() => go({ view: v })}>{l}</button>
+              <button key={v} aria-current={route.view === v || (v === 'portfolio' && route.view === 'detail') || (v === 'new' && route.view === 'edit') ? 'page' : undefined}
+                onClick={() => (v === 'sell' ? openSell() : go({ view: v }))}>{l}</button>
             ))}
           </nav>
           <select value={theme} onChange={(e) => setTheme(e.target.value as Theme)} aria-label="Theme" style={{ fontSize: 12 }}>
@@ -133,6 +163,20 @@ export function App() {
             )}
             {route.view === 'settings' && <SettingsView settings={settings} setSettings={setSettings} comps={comps} records={records} onClear={() => { persist([]); toast('All records deleted'); }} />}
             {route.view === 'method' && <MethodView />}
+            {route.view === 'sell' && sellDraft && (
+              <SellView key={sellDraft.id} initial={sellDraft} settings={settings} comps={comps} onSave={saveDraft} onSaved={() => go({ view: 'sell-saved' })} />
+            )}
+            {route.view === 'sell-saved' && (
+              <SellSaved drafts={drafts} settings={settings} comps={comps} onOpen={(id) => openSell(id)} onNew={() => openSell()}
+                onDuplicate={(id) => {
+                  const src = drafts.find((x) => x.id === id);
+                  if (!src) return;
+                  const copy: SellDraft = { ...src, id: newSellId(), name: `${src.name} (copy)`, updatedAt: new Date().toISOString(), values: { ...src.values, business_name: `${src.values.business_name ?? src.name} (copy)` } };
+                  persistDrafts([...drafts, copy]);
+                  toast('Duplicated');
+                }}
+                onDelete={(id) => { persistDrafts(drafts.filter((x) => x.id !== id)); toast('Valuation deleted'); }} />
+            )}
           </>
         )}
       </main>
@@ -140,7 +184,7 @@ export function App() {
       <footer>
         <div className="shell">
           <p>Screening estimate, not a formal valuation or financial advice. Formal Australian valuations for tax follow the ATO's market valuation guidance and are done by a qualified valuer.</p>
-          <p>Industry ranges are broker-published rules of thumb (Business For Sale, Aug 2026), not a register of closed sales; accuracy improves as you load your own sold records. Data stays in this browser. AUD · AEST.</p>
+          <p>Industry ranges are broker-published rules of thumb (Business For Sale, Aug 2026), not a register of closed sales; accuracy improves as you load your own sold records. Buy-side records and sell-side valuations are stored separately in this browser. AUD · AEST.</p>
         </div>
       </footer>
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}

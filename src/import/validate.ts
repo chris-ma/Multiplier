@@ -4,7 +4,9 @@ import type { Settings } from '../engine/settings';
 import type { BizRecord } from '../engine/types';
 import { value, type CompsContext, type ValuationResult } from '../engine/value';
 import { coerceField } from './parse';
-import { RecordSchema } from './schema';
+import { makeRecordSchema, RecordSchema } from './schema';
+
+const NoPriceSchema = makeRecordSchema({ requirePrice: false });
 
 export const MAX_ROWS = 5000;
 export const MAX_BYTES = 10 * 1024 * 1024;
@@ -55,7 +57,7 @@ export function applyMapping(raw: Record<string, unknown>, mapping: Mapping): Re
 }
 
 /** Validate one mapped row. Coerces each cell, then runs the Zod record schema and warning rules. */
-export function validateRow(mapped: Record<string, unknown>, settings: Settings, comps?: CompsContext): Omit<RowResult, 'index' | 'raw'> {
+export function validateRow(mapped: Record<string, unknown>, settings: Settings, comps?: CompsContext, opts: { requirePrice?: boolean } = {}): Omit<RowResult, 'index' | 'raw'> {
   const issues: CellIssue[] = [];
   const coerced: Record<string, unknown> = {};
   for (const def of FIELDS) {
@@ -65,7 +67,7 @@ export function validateRow(mapped: Record<string, unknown>, settings: Settings,
     else issues.push({ field: def.key, severity: 'reject', message: c.error, suggestion: c.suggestion });
   }
   const bad = new Set(issues.map((i) => i.field));
-  const parsed = RecordSchema.safeParse(coerced);
+  const parsed = (opts.requirePrice === false ? NoPriceSchema : RecordSchema).safeParse(coerced);
   if (!parsed.success) {
     for (const iss of parsed.error.issues) {
       const field = String(iss.path[0] ?? '');

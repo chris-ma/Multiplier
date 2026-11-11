@@ -45,3 +45,23 @@ export function lsGet<T>(key: string, fallback: T): T {
 export function lsSet(key: string, v: unknown) {
   try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* ignore */ }
 }
+
+/** Sell side: an owner's saved pricing scenarios. Stored separately from the buy-side portfolio. */
+export interface SellDraft {
+  id: string;
+  name: string;
+  updatedAt: string;
+  /** Form values keyed by schema field (plus `annual_rent`, `industry_preset`). Strings, as typed. */
+  values: Record<string, string>;
+  listPrice?: string;
+  checklist?: Record<string, boolean>;
+}
+const K_SELL = 'multiplier:sell:v1';
+let memSell: SellDraft[] = [];
+export async function loadSellDrafts(): Promise<SellDraft[]> {
+  try { return ((await get(K_SELL)) as SellDraft[] | undefined) ?? []; } catch { return memSell; }
+}
+export async function saveSellDrafts(ds: SellDraft[]): Promise<void> {
+  memSell = ds;
+  try { await set(K_SELL, ds); } catch { /* memory only */ }
+}
